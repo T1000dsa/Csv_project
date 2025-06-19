@@ -7,14 +7,15 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG,
         format='%(filename)s:%(lineno)d #%(levelname)-8s '
                '[%(asctime)s] - %(name)s - %(message)s')
-
+#main.py C:\Users\marse\Downloads\customers-1000.csv --filter "Index||<10" 
 parser = argparse.ArgumentParser()
-parser.add_argument('adress')
-parser.add_argument('--filter', type=str, default='Index')
+parser.add_argument('--file', type=str)
+parser.add_argument('--where', type=str, default='Index')
+parser.add_argument('--agr', default=None)
 parser.add_argument('--order', type=str, default='ASC')
 args = parser.parse_args()
-adress = args.adress
-column, condition = args.filter.split('||') # Index||> 34
+file = args.file
+column, condition = args.where.split('||') # Index||> 34
 _order = False if args.order == 'ASC' else True
 
 condition = re.findall(r'(|<|>|==|<=|>=|!=)(\d+)', condition)
@@ -22,7 +23,7 @@ condition = re.findall(r'(|<|>|==|<=|>=|!=)(\d+)', condition)
 if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition))):
     raise KeyError('Err')
 
-with open(adress, encoding='utf-8') as csv_file:
+with open(file, encoding='utf-8') as csv_file:
     csv_raw_data = list(csv.DictReader(csv_file))
     filtered_data = []
 
@@ -43,7 +44,8 @@ with open(adress, encoding='utf-8') as csv_file:
                     continue
                 filtered_data.append(item)
             continue
-        
+
     ordered_data = sorted(filtered_data, key=lambda x:x[column], reverse=_order)
-    print(ordered_data)
+    for i in ordered_data:
+        print(i['Index'])
 print(condition)
