@@ -1,7 +1,9 @@
+from tabulate import tabulate
 import csv
 import argparse 
 import re
 import logging
+
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG,
@@ -44,6 +46,28 @@ def filter_data_helper(column:str, condition:list, csv_raw_data:list[dict], filt
         if res:
             filtered_data.append(res)
 
+def order_helper(result:list[dict], order_by:str, is_reverse:bool, column_add:str = None):
+    logger.debug(order_by[0])
+    if order_by[0]:
+        logger.debug(1)
+        if result[0].get(order_by[0]).isdigit():
+            logger.debug(2)
+            return sorted([i for i in result if i[order_by[0]].isdigit()], key=lambda x:int(x[order_by[0]]), reverse=is_reverse)
+        else:
+            logger.debug(3)
+            return sorted(result, key=lambda x:x[order_by[0]], reverse=is_reverse)
+
+    else:
+        logger.debug(10)
+        if result[0].get(column_add).isdigit():
+            logger.debug(11)
+            return sorted(result, key=lambda x:int(x[column_add]), reverse=is_reverse)
+        else:
+            logger.debug(12)
+            return sorted(result, key=lambda x:x[column_add], reverse=is_reverse)
+
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument('--file', type=str)
 parser.add_argument('--where', default=None)
@@ -59,52 +83,74 @@ file = args.file
 if args.where:
     column_f, condition_f = args.where.split('||')
 
+    if args.where:
+        condition_f = re.findall(r'(|<|>|==|<=|>=|!=)(\d+|[A-z\s\(\)]+)', condition_f)
+        if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition_f))):
+            raise KeyError('Err')
+
 if args.aggregate:
     column_a, condition_a = args.aggregate.split('=')
 
 
-if args.where:
-    condition_f = re.findall(r'(|<|>|==|<=|>=|!=)(\d+|[A-z\s\(\)]+)', condition_f)
-    if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition_f))):
-        raise KeyError('Err')
-    
-_order = False if args.order == 'ASC' else True
+if args.order:
+    order_by:list = args.order.split('=') # --order "value=ASC"
+
+    if len(order_by) == 2:
+        is_reverse = True if order_by[1] == 'DESC' else False
+
+    elif len(order_by) == 1:
+        order_by.insert(0, '')
+        is_reverse = True if order_by[1] == 'DESC' else False
+
+logger.debug(f'{args.file}  {args.where}  {args.aggregate}  {args.order}')
 
 def main_func():
     with open(file, encoding='utf-8') as csv_file:
         csv_raw_data = list(csv.DictReader(csv_file))
         filtered_data = []
 
-        if column_f and condition_f:
+        if column_f and condition_f: #2 Если есть только аргумент фильтрации
             filter_data_helper(column_f, condition_f, csv_raw_data, filtered_data)
 
-            if csv_raw_data[0][column_f].isdigit():
-                logger.debug(f'{column_f}')
-                ordered_data = sorted(filtered_data, key=lambda x:int(x[column_f]), reverse=_order)
+            if args.order:
+                filtered_data = order_helper(filtered_data, order_by, is_reverse, column_f)
 
-            elif csv_raw_data[0][column_f].isascii():
-                logger.debug(f'{column_f}')
-                ordered_data = sorted(filtered_data, key=lambda x:x[column_f], reverse=_order)
+            if column_a and condition_a: #3 Если есть аргумент фильтрации И аггрегации
+                if filtered_data[0][column_a].isdigit():
+                    result = aggr_data.get(condition_a)([int(i[column_a]) for i in filtered_data if i[column_a].isdigit()])
+                
+                elif filtered_data[0][column_a].isascii():
+                    result = aggr_data.get(condition_a)([i[column_a] for i in filtered_data])
 
-        if column_a and condition_a:
-            if filtered_data[0][column_a].isdigit():
-                result = aggr_data.get(condition_a)([int(i[column_a]) for i in filtered_data])
-                print(result)
+                return [{f"{column_a} - {condition_a}":result}]
             
-            elif filtered_data[0][column_a].isascii():
-                result = aggr_data.get(condition_a)([i[column_a] for i in filtered_data])
+            return filtered_data
 
-            return result
 
-        return ordered_data
+        elif column_a and condition_a: #4 Если есть только аргумент аггрегации
+            if csv_raw_data[0][column_a].isdigit():
+                result = aggr_data.get(condition_a)([int(i[column_a]) for i in csv_raw_data if i[column_a].isdigit()])
+            
+            elif csv_raw_data[0][column_a].isascii():
+                result = aggr_data.get(condition_a)([i[column_a] for i in csv_raw_data])
+
+            return [{f"{column_a} - {condition_a}":result}]
+        
+        elif order_by: #5 Если есть только аргумент сортировки
+            csv_raw_data = order_helper(csv_raw_data, order_by, is_reverse)
+            return csv_raw_data
+
+        
+        else: #1 Если нет аргументов
+            return csv_raw_data
+
 
 result = main_func()
 print(result)
 
-"""
+print(tabulate(result, headers='keys', tablefmt='grid'))
 
-    else:
-        if args.where:
-            ordered_data = sorted(csv_raw_data, key=lambda x:x[column_f], reverse=_order)
-        else:
-            ordered_data = csv_raw_data"""
+try:
+   print(len(result))
+   pass
+except:pass
