@@ -47,26 +47,21 @@ def filter_data_helper(column:str, condition:list, csv_raw_data:list[dict], filt
             filtered_data.append(res)
 
 def order_helper(result:list[dict], order_by:str, is_reverse:bool, column_add:str = None):
-    logger.debug(order_by[0])
+    #logger.debug(order_by)
     if order_by[0]:
-        logger.debug(1)
-        if result[0].get(order_by[0]).isdigit():
-            logger.debug(2)
-            return sorted([i for i in result if i[order_by[0]].isdigit()], key=lambda x:int(x[order_by[0]]), reverse=is_reverse)
+        if result[0].get(order_by[0]).replace('.', '').isdigit():
+            return sorted([i for i in result if i[order_by[0]].replace('.', '').isdigit()], key=lambda x:float(x[order_by[0]]), reverse=is_reverse)
         else:
-            logger.debug(3)
             return sorted(result, key=lambda x:x[order_by[0]], reverse=is_reverse)
 
     else:
-        logger.debug(10)
-        if result[0].get(column_add).isdigit():
-            logger.debug(11)
-            return sorted(result, key=lambda x:int(x[column_add]), reverse=is_reverse)
+        if column_add:
+            if result[0].get(column_add).isdigit():
+                return sorted(result, key=lambda x:float(x[column_add]), reverse=is_reverse)
+            else:
+                return sorted(result, key=lambda x:x[column_add], reverse=is_reverse)
         else:
-            logger.debug(12)
-            return sorted(result, key=lambda x:x[column_add], reverse=is_reverse)
-
-
+            return result
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--file', type=str)
@@ -84,9 +79,9 @@ if args.where:
     column_f, condition_f = args.where.split('||')
 
     if args.where:
-        condition_f = re.findall(r'(|<|>|==|<=|>=|!=)(\d+|[A-z\s\(\)]+)', condition_f)
+        condition_f = re.findall(r'(|<|>|==|<=|>=|!=)([\d\.]+|[A-z\s\(\)]+)', condition_f)
         if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition_f))):
-            raise KeyError('Err')
+            raise KeyError('Лишние аргументы')
 
 if args.aggregate:
     column_a, condition_a = args.aggregate.split('=')
@@ -102,7 +97,8 @@ if args.order:
         order_by.insert(0, '')
         is_reverse = True if order_by[1] == 'DESC' else False
 
-logger.debug(f'{args.file}  {args.where}  {args.aggregate}  {args.order}')
+
+#logger.debug(f'{args.file}  {args.where}  {args.aggregate}  {args.order}')
 
 def main_func():
     with open(file, encoding='utf-8') as csv_file:
@@ -116,8 +112,9 @@ def main_func():
                 filtered_data = order_helper(filtered_data, order_by, is_reverse, column_f)
 
             if column_a and condition_a: #3 Если есть аргумент фильтрации И аггрегации
-                if filtered_data[0][column_a].isdigit():
-                    result = aggr_data.get(condition_a)([int(i[column_a]) for i in filtered_data if i[column_a].isdigit()])
+                print()
+                if filtered_data[0][column_a].replace('.', '').isdigit():
+                    result = aggr_data.get(condition_a)([float(i[column_a]) for i in filtered_data if i[column_a].replace('.', '').isdigit()])
                 
                 elif filtered_data[0][column_a].isascii():
                     result = aggr_data.get(condition_a)([i[column_a] for i in filtered_data])
@@ -128,8 +125,8 @@ def main_func():
 
 
         elif column_a and condition_a: #4 Если есть только аргумент аггрегации
-            if csv_raw_data[0][column_a].isdigit():
-                result = aggr_data.get(condition_a)([int(i[column_a]) for i in csv_raw_data if i[column_a].isdigit()])
+            if csv_raw_data[0][column_a].replace('.', '').isdigit():
+                result = aggr_data.get(condition_a)([float(i[column_a]) for i in csv_raw_data if i[column_a].replace('.', '').isdigit()])
             
             elif csv_raw_data[0][column_a].isascii():
                 result = aggr_data.get(condition_a)([i[column_a] for i in csv_raw_data])
@@ -146,11 +143,5 @@ def main_func():
 
 
 result = main_func()
-print(result)
 
 print(tabulate(result, headers='keys', tablefmt='grid'))
-
-try:
-   print(len(result))
-   pass
-except:pass
