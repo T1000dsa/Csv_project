@@ -10,6 +10,8 @@ logging.basicConfig(level=logging.DEBUG,
         format='%(filename)s:%(lineno)d #%(levelname)-8s '
                '[%(asctime)s] - %(name)s - %(message)s')
 
+parser = argparse.ArgumentParser()
+
 aggr_data = {
     'avg':lambda x:sum(x)/len(x),
     'max':max,
@@ -63,45 +65,38 @@ def order_helper(result:list[dict], order_by:str, is_reverse:bool, column_add:st
         else:
             return result
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--file', type=str)
-parser.add_argument('--where', default=None)
-parser.add_argument('--aggregate', default=None)
-parser.add_argument('--order', type=str, default='ASC')
-args = parser.parse_args()
+def main_func(args=None):
+    column_f, condition_f = None, None
+    column_a, condition_a = None, None
+    order_by = []
 
-column_f, condition_f = None, None
-column_a, condition_a = None, None
-
-file = args.file
-
-if args.where:
-    column_f, condition_f = args.where.split('||')
+    if args is None:
+            args = parser.parse_args()
 
     if args.where:
-        condition_f = re.findall(r'(|<|>|==|<=|>=|!=)([\d\.]+|[A-z\s\(\)]+)', condition_f)
-        if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition_f))):
-            raise KeyError('Лишние аргументы')
+        column_f, condition_f = args.where.split('||')
 
-if args.aggregate:
-    column_a, condition_a = args.aggregate.split('=')
+        if args.where:
+            condition_f = re.findall(r'(|<|>|==|<=|>=|!=)([\d\.]+|[A-z\s\(\)]+)', condition_f)
+            if not all(list(map(lambda x:all(map(lambda y:bool(y), x)), condition_f))):
+                raise KeyError('Лишние аргументы')
 
-
-if args.order:
-    order_by:list = args.order.split('=') # --order "value=ASC"
-
-    if len(order_by) == 2:
-        is_reverse = True if order_by[1] == 'DESC' else False
-
-    elif len(order_by) == 1:
-        order_by.insert(0, '')
-        is_reverse = True if order_by[1] == 'DESC' else False
+    if args.aggregate:
+        column_a, condition_a = args.aggregate.split('=')
 
 
-#logger.debug(f'{args.file}  {args.where}  {args.aggregate}  {args.order}')
+    if args.order:
+        order_by:list = args.order.split('=') # --order "value=ASC"
 
-def main_func():
-    with open(file, encoding='utf-8') as csv_file:
+        if len(order_by) == 2:
+            is_reverse = True if order_by[1] == 'DESC' else False
+
+        elif len(order_by) == 1:
+            order_by.insert(0, '')
+            is_reverse = True if order_by[1] == 'DESC' else False
+
+
+    with open(args.file, encoding='utf-8') as csv_file:
         csv_raw_data = list(csv.DictReader(csv_file))
         filtered_data = []
 
@@ -142,6 +137,12 @@ def main_func():
             return csv_raw_data
 
 
-result = main_func()
+if __name__ == '__main__':
+    parser.add_argument('--file', type=str)
+    parser.add_argument('--where', default=None)
+    parser.add_argument('--aggregate', default=None)
+    parser.add_argument('--order', type=str, default='ASC')
+    args = parser.parse_args()
 
-print(tabulate(result, headers='keys', tablefmt='grid'))
+    result = main_func()  # Or adjust as needed
+    print(tabulate(result, headers='keys', tablefmt='grid'))
